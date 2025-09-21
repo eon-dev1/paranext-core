@@ -12,6 +12,11 @@ export {
   BOOK_SELECTOR_STRING_KEYS,
   BookSelectionMode,
 } from './components/advanced/book-selector.component';
+export {
+  default as RecentSearches,
+  useRecentSearches,
+} from './components/advanced/recent-searches.component';
+export type { RecentSearchesProps } from './components/advanced/recent-searches.component';
 export type { BookSelectorLocalizedStrings } from './components/advanced/book-selector.component';
 export { default as DataTable } from './components/advanced/data-table/data-table.component';
 export type {
@@ -35,8 +40,13 @@ export {
 export { MoreInfo } from './components/advanced/extension-marketplace/more-info.component';
 export type { VersionHistoryType } from './components/advanced/extension-marketplace/version-history.component';
 export { default as Footer } from './components/advanced/extension-marketplace/footer.component';
-
 export { default as Filter } from './components/advanced/filter.component';
+export type {
+  FootnoteItemProps,
+  FootnoteListProps,
+} from './components/advanced/footnotes/footnotes.types';
+export { default as FootnoteItem } from './components/advanced/footnotes/footnote-item.component';
+export { default as FootnoteList } from './components/advanced/footnotes/footnote-list.component';
 export {
   default as Inventory,
   type InventoryItem,
@@ -117,7 +127,6 @@ export type {
   ComboBoxProps,
   ComboBoxOption,
 } from './components/basics/combo-box.component';
-
 export { ErrorDump } from './components/basics/error-dump.component';
 export { ERROR_DUMP_STRING_KEYS } from './components/basics/error-dump.component';
 export type { ErrorDumpLocalizedStrings } from './components/basics/error-dump.component';
@@ -127,7 +136,6 @@ export { default as Spinner } from './components/basics/spinner.component';
 export type { SpinnerProps } from './components/basics/spinner.component';
 export { default as TextField } from './components/basics/text-field.component';
 export type { TextFieldProps } from './components/basics/text-field.component';
-
 export { Alert, AlertTitle, AlertDescription } from './components/shadcn-ui/alert';
 export { Avatar, AvatarFallback, AvatarImage } from './components/shadcn-ui/avatar';
 export { Badge, type BadgeProps, badgeVariants } from './components/shadcn-ui/badge';
