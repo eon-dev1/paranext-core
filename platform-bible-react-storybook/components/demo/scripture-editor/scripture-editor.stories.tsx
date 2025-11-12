@@ -1,7 +1,11 @@
 import {
+  DeltaOp,
   Editorial,
   EditorOptions,
   EditorRef,
+  GENERATOR_NOTE_CALLER,
+  getDefaultViewOptions,
+  HIDDEN_NOTE_CALLER,
   ViewOptions,
 } from '@eten-tech-foundation/platform-editor';
 import { USJ_TYPE, USJ_VERSION } from '@eten-tech-foundation/scripture-utilities';
@@ -10,6 +14,7 @@ import type { Meta, StoryObj } from '@storybook/react-vite';
 import { useRef, useEffect, useState, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { CanvasWithDescription } from '@/components/demo/scripture-editor/canvas-with-description.component';
+import { renderEditorialWithToolbar } from '@/components/demo/scripture-editor/editorial-with-toolbar.renderer';
 import {
   annotationRangeWeb1,
   annotationRangeWeb2,
@@ -18,6 +23,8 @@ import {
   usjWeb,
 } from '@/components/demo/scripture-editor/usj.data';
 import '@/components/demo/scripture-editor/scripture-editor.stories.css';
+import FootnoteEditor from '@/components/advanced/footnotes/footnote-editor.component';
+import { Popover, PopoverAnchor, PopoverContent } from '@/components/shadcn-ui/popover';
 
 const defaultScrRef: SerializedVerseRef = { book: 'PSA', chapterNum: 1, verseNum: 1 };
 
@@ -31,7 +38,7 @@ const meta: Meta<typeof Editorial> = {
         component: `
 **Demo Only:** This component is provided for demonstration purposes only. For production applications, developers should import the Scripture Editor component directly from:
 - npm [@eten-tech-foundation/platform-editor](https://www.npmjs.com/package/@eten-tech-foundation/platform-editor)
-- github [@eten-tech-foundation/platform-editor](https://github.com/eten-tech-foundation/scripture-editors/tree/main/packages/platform)
+- github [eten-tech-foundation/platform-editor](https://github.com/eten-tech-foundation/scripture-editors/tree/main/packages/platform)
 
 This demo version is included in Storybook to showcase the component's functionality and usage patterns.
 
@@ -106,28 +113,21 @@ export const ReadOnly: Story = {
 };
 
 export const RTL: Story = {
-  render: (args, context) => (
-    <CanvasWithDescription
-      viewMode={context.viewMode}
-      description={context.parameters?.docs?.description?.story ?? context.parameters?.description}
-    >
-      <Editorial {...args} />
-    </CanvasWithDescription>
-  ),
+  render: (args, context) => renderEditorialWithToolbar(args, context, defaultScrRef),
   parameters: {
     docs: {
       description: {
         story:
           'Right-to-left example using a Hebrew snippet (Psalm 1:1). ' +
           'The editor is set to RTL via _options.textDirection = "rtl"_. If you want the UI ' +
-          '(editor toolbar) to be RTL click **Switch direction** in the Storybook toolbar.',
+          '(tab toolbar) to be RTL click **Switch direction** in the Storybook toolbar.',
       },
     },
   },
   args: {
     defaultUsj: usjHebrew,
-    scrRef: defaultScrRef,
     options: {
+      hasExternalUI: true,
       textDirection: 'rtl',
     },
   },
@@ -139,10 +139,13 @@ export const Annotated: Story = {
     const editorRef = useRef<EditorRef | null>(null);
 
     useEffect(() => {
-      if (editorRef.current) {
-        editorRef.current.addAnnotation(annotationRangeWeb1, 'spelling', 'annotationId');
-        editorRef.current.addAnnotation(annotationRangeWeb2, 'grammar', 'abc123');
-      }
+      const timeoutId = setTimeout(() => {
+        if (editorRef.current) {
+          editorRef.current.addAnnotation(annotationRangeWeb1, 'spelling', 'annotationId');
+          editorRef.current.addAnnotation(annotationRangeWeb2, 'grammar', 'abc123');
+        }
+      }, 0);
+      return () => clearTimeout(timeoutId);
     }, []);
 
     return <Editorial {...args} ref={editorRef} />;
@@ -153,12 +156,77 @@ export const Annotated: Story = {
   },
 };
 
+const inlineNoteOptions: EditorOptions = {
+  hasExternalUI: true,
+  view: { ...getDefaultViewOptions(), noteMode: 'expandInline' },
+  nodes: {
+    noteCallerOnClick: (_event, _noteNodeKey, isCollapsed, getCaller, setCaller) => {
+      if (isCollapsed) return;
+
+      if (getCaller() === GENERATOR_NOTE_CALLER) setCaller(HIDDEN_NOTE_CALLER);
+      else setCaller(GENERATOR_NOTE_CALLER);
+    },
+  },
+};
+
+export const InlineNoteEditing: Story = {
+  render: (args, context) => renderEditorialWithToolbar(args, context, defaultScrRef),
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'This story demonstrates editing notes inline. Move your cursor to a note caller and ' +
+          'the note will expand and can be edited. Move the cursor out of the note and it will ' +
+          'collapse. Click the expanded note caller to toggle between the auto-generated caller ' +
+          'and the hidden caller.',
+      },
+    },
+  },
+  args: {
+    defaultUsj: usjWeb,
+    options: inlineNoteOptions,
+  },
+};
+
+const insertNoteOptions: EditorOptions = {
+  hasExternalUI: true,
+  view: { ...getDefaultViewOptions(), noteMode: 'expandInline' },
+};
+
+export const InsertNote: Story = {
+  render: (args, context) => renderEditorialWithToolbar(args, context, defaultScrRef),
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'This story demonstrates inserting notes. Use the Project menu (hamburger) or the ' +
+          'toolbar buttons above the editor to insert footnotes, cross-references, and endnotes ' +
+          'at the current cursor position. Selecting text before inserting a footnote will use ' +
+          'that text as the footnote quote. You can also insert by typing "\\f", "\\x", or "\\fe".',
+      },
+    },
+  },
+  args: {
+    defaultUsj: usjWeb,
+    options: insertNoteOptions,
+  },
+};
+
 const customNodeOptions: EditorOptions = {
+  hasExternalUI: true,
   nodes: {
     noteCallers: ['①', '②', '③', '④', '⑤', '⑥', '⑦', '⑧', '⑨', '⑩'],
-    noteCallerOnClick: (event) => {
+    noteCallerOnClick: (event, noteNodeKey, isCollapsed, getCaller, setCaller, getNoteOps) => {
       // eslint-disable-next-line no-console
-      console.log('Note caller clicked:', event);
+      console.log(
+        'Note caller clicked:',
+        event,
+        noteNodeKey,
+        isCollapsed,
+        getCaller,
+        setCaller,
+        getNoteOps,
+      );
       // eslint-disable-next-line no-alert
       alert('Note caller clicked! Check console for details.');
     },
@@ -166,14 +234,7 @@ const customNodeOptions: EditorOptions = {
 };
 
 export const CustomNoteOptions: Story = {
-  render: (args, context) => (
-    <CanvasWithDescription
-      viewMode={context.viewMode}
-      description={context.parameters?.docs?.description?.story ?? context.parameters?.description}
-    >
-      <Editorial {...args} />
-    </CanvasWithDescription>
-  ),
+  render: (args, context) => renderEditorialWithToolbar(args, context, defaultScrRef),
   parameters: {
     docs: {
       description: {
@@ -186,20 +247,12 @@ export const CustomNoteOptions: Story = {
   },
   args: {
     defaultUsj: usjWeb,
-    scrRef: defaultScrRef,
     options: customNodeOptions,
   },
 };
 
 export const CustomMarkerTrigger: Story = {
-  render: (args, context) => (
-    <CanvasWithDescription
-      viewMode={context.viewMode}
-      description={context.parameters?.docs?.description?.story ?? context.parameters?.description}
-    >
-      <Editorial {...args} />
-    </CanvasWithDescription>
-  ),
+  render: (args, context) => renderEditorialWithToolbar(args, context, defaultScrRef),
   parameters: {
     docs: {
       description: {
@@ -213,9 +266,122 @@ export const CustomMarkerTrigger: Story = {
   },
   args: {
     defaultUsj: usjWeb,
+    options: {
+      hasExternalUI: true,
+      markerMenuTrigger: '?',
+    },
+  },
+};
+
+export const FootnoteEditorView: Story = {
+  render: (args) => {
+    // eslint-disable-next-line no-null/no-null
+    const editorRef = useRef<EditorRef | null>(null);
+
+    const [noteKey, setNoteKey] = useState<string>();
+    const [noteOps, setNoteOps] = useState<DeltaOp[]>();
+
+    const [popoverX, setPopoverX] = useState<number>();
+    const [popoverY, setPopoverY] = useState<number>();
+    const [popoverHeight, setPopoverHeight] = useState<number>();
+
+    const [showFootnoteEditor, setShowFootnoteEditor] = useState<boolean>();
+
+    const viewOptions = useMemo<ViewOptions>(
+      () => ({
+        markerMode: 'hidden',
+        hasSpacing: true,
+        isFormattedFont: true,
+      }),
+      [],
+    );
+
+    const mergedOptions = useMemo<EditorOptions>(() => {
+      const base = args.options ?? {};
+      return {
+        ...base,
+        nodes: {
+          noteCallerOnClick: (
+            event,
+            noteNodeKey,
+            isCollapsed,
+            _getCaller,
+            _setCaller,
+            getNoteOps,
+          ) => {
+            const targetRect = event.currentTarget.getBoundingClientRect();
+            setPopoverX(targetRect.left);
+            setPopoverY(targetRect.top);
+            setPopoverHeight(targetRect.height);
+
+            if (isCollapsed) {
+              // (event as SyntheticEvent<)
+              if (noteKey) return;
+
+              setNoteKey(noteNodeKey);
+              setNoteOps(getNoteOps());
+              setShowFootnoteEditor(true);
+            }
+          },
+        },
+        view: viewOptions,
+      };
+    }, [args.options, viewOptions, noteKey]);
+
+    const onEditorClose = () => {
+      setNoteKey(undefined);
+      setNoteOps(undefined);
+      setShowFootnoteEditor(false);
+    };
+
+    const onEditorSave = (newNoteOps: DeltaOp[]) => {
+      if (noteKey) {
+        editorRef.current?.replaceEmbedUpdate(noteKey, newNoteOps);
+      }
+      onEditorClose();
+    };
+
+    return (
+      <div>
+        <Editorial
+          {...args}
+          options={mergedOptions}
+          ref={editorRef}
+          onScrRefChange={() => undefined}
+        />
+        <Popover open={showFootnoteEditor}>
+          <PopoverAnchor
+            className="tw-absolute"
+            style={{ top: popoverY ?? 0, left: popoverX ?? 0, height: popoverHeight, width: 0 }}
+          />
+          <PopoverContent className="tw-w-96 tw-p-[10px]">
+            <FootnoteEditor
+              noteKey={noteKey}
+              noteOps={noteOps}
+              onSave={onEditorSave}
+              onClose={onEditorClose}
+              scrRef={args.scrRef ?? defaultScrRef}
+              viewOptions={viewOptions}
+            />
+          </PopoverContent>
+        </Popover>
+      </div>
+    );
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'This story demonstrates the use of the new footnote editor on the side of the ' +
+          ' editorial component',
+      },
+    },
+  },
+  args: {
+    defaultUsj: usjWeb,
     scrRef: defaultScrRef,
     options: {
-      markerMenuTrigger: '?',
+      hasExternalUI: false,
     },
   },
 };
@@ -302,14 +468,7 @@ export const MarkersView: Story = {
 
 export const ViewOptionsStory: Story = {
   name: 'View Options',
-  render: (args, context) => (
-    <CanvasWithDescription
-      viewMode={context.viewMode}
-      description={context.parameters?.docs?.description?.story ?? context.parameters?.description}
-    >
-      <Editorial {...args} />
-    </CanvasWithDescription>
-  ),
+  render: (args, context) => renderEditorialWithToolbar(args, context, defaultScrRef),
   parameters: {
     docs: {
       description: {
@@ -317,16 +476,18 @@ export const ViewOptionsStory: Story = {
           'Demonstrates the editor view options (marker visibility, spacing, and formatted font) ' +
           'using USX input. Below in the **Controls** tab, try changing the **options.view** ' +
           'values to see how they affect the editor display. Valid values for **markerMode** are ' +
-          '_"hidden"_, _"visible"_, and _"editable"_.',
+          '_"hidden"_, _"visible"_, and _"editable"_. Valid values for **noteMode** are ' +
+          '_"collapsed"_, _"expandInline"_, and _"expanded"_.',
       },
     },
   },
   args: {
     defaultUsj: usjWeb,
-    scrRef: defaultScrRef,
     options: {
+      hasExternalUI: true,
       view: {
         markerMode: 'hidden',
+        noteMode: 'collapsed',
         hasSpacing: true,
         isFormattedFont: true,
       },
